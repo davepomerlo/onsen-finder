@@ -524,7 +524,7 @@ function openDetail(o, fromMap){
   if (w){
     if (w.ss) rows.push([LANG==='ja'?'泉質（記載）':'Listed type 泉質', esc(w.ss)]);
     if (w.ph) rows.push([t('ph'), esc(w.ph)]);
-    if (w.t) rows.push([t('temp'), esc(w.t)]);
+    if (w.t) rows.push([t('temp'), esc(w.t) + (/^[\d.\s\-〜~–]+$/.test(w.t) ? ' °C' : '')]);
     if (w.flow) rows.push([t('flow'), esc(w.flow)]);
     if (w.liq) rows.push([LANG==='ja'?'液性':'Acidity 液性', esc(w.liq)]);
     if (w.osm) rows.push([LANG==='ja'?'浸透圧':'Tonicity 浸透圧', esc(w.osm)]);

@@ -127,6 +127,7 @@ for line in open(os.path.join(DATA, 'romaji.txt'), encoding='utf-8'):
 
 
 def clean_disambig(s):
+    s = s.replace('\u3000', ' ')
     return re.sub(r'\s*[（(][^）)]*[）)]\s*$', '', s).strip()
 
 
