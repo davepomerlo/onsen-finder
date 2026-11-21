@@ -22,6 +22,7 @@ A bilingual (English / 日本語) map of Japan's hot springs with water-quality 
 |---|---|---|
 | Onsen list, coordinates, spring-type classes, ja.wikipedia titles | `scripts/fetch_wikidata.py` | `data/wikidata.json` |
 | 泉質 / 泉温 / 湧出量 / pH / 液性 from article infoboxes | `scripts/fetch_wikipedia.py` | `data/wikipedia.json` |
+| Geocode addresses of hand-added onsen (国土地理院 address search) | `scripts/geocode.py` | `data/geocode.json` |
 | Merge with curated data, assign prefectures, score | `scripts/build.py` | `docs/onsen.json`, `docs/prefs.json`, `docs/japan.json` |
 | Watch 湯シュラン, 100選 and じゃらん for new results | `scripts/watch_sources.py` | opens a GitHub issue when a source changes |
 
@@ -35,6 +36,9 @@ leaves last week's data in place.
 ## Editing
 
 - **Water data and awards:** `data/curated.py` (each entry is keyed by its Wikidata Q-number)
+- **Hidden gems (秘湯・野湯):** the `H` list in `data/curated.py`. For a place that isn't on Wikidata, give
+  `new=dict(ja=…, en=…, addr='住所', lat=…, lon=…)`; the workflow geocodes the address, and `lat`/`lon` are a
+  fallback. List who recommends it in `src` (keys of `SRC`), so the app can link to them.
 - **English readings** for places with no English label: `data/romaji.txt` (`日本語名|Romaji`; the build
   log lists names still missing one)
 - **The app:** `docs/index.html` (single file; D3 from cdnjs)
@@ -56,6 +60,9 @@ cd docs && python -m http.server   # open http://localhost:8000
 - 観光経済新聞社 — 第39回 にっぽんの温泉100選 (top 20)
 - じゃらんリサーチセンター — じゃらん人気温泉地ランキング2026
 - 環境省 — 国民保養温泉地 (79 designated areas)
+- Hidden-gem picks: BE-PAL (秘湯探検家 渡辺裕美), ニフティ温泉 (survey of 2,300 bathers), Tofugu, GOOD LUCK TRIP,
+  Atlas Obscura, The Japan Times, LINE TODAY Taiwan, ゆるーと, Visit Hokkaido, 観光庁 多言語解説, YouTube — linked per onsen
+- [国土地理院 address search](https://msearch.gsi.go.jp/) — coordinates for hand-added onsen
 - [dataofjapan/land](https://github.com/dataofjapan/land) — prefecture boundaries from GSI Global Map Japan (地球地図日本)
 
 Water figures are representative values for each area. Since 2005 every bath in Japan must post whether its

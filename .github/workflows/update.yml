@@ -42,6 +42,10 @@ jobs:
         continue-on-error: true
         run: python scripts/fetch_wikipedia.py
 
+      - name: Geocode hand-added onsen (GSI address search)
+        continue-on-error: true
+        run: python scripts/geocode.py
+
       - name: Build site data
         run: python scripts/build.py
 

@@ -100,6 +100,8 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.35fr) min
 .tag.t{color:#fff}
 .badge{font-size:11.5px;border-radius:6px;padding:1px 6px;border:1px solid var(--gold);color:var(--gold);white-space:nowrap}
 .badge.k{border-color:var(--water);color:var(--water)}
+.badge.h{border-color:var(--ink);color:var(--ink);background:var(--land)}
+.badge.x{border-color:var(--yu);color:#fff;background:var(--yu)}
 .more{margin:6px auto 0}
 /* detail sheet */
 #sheet{position:fixed;z-index:20;background:var(--panel);border-left:1px solid var(--line);top:0;right:0;bottom:0;width:min(440px,100%);transform:translateX(105%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
@@ -251,7 +253,8 @@ const FLAGS = {
   enso:{ja:'塩素消毒が多い', en:'Chlorination common'},
   kyo:{ja:'温泉郷', en:'Onsen village group'},
   geyser:{ja:'間欠泉', en:'Geyser'},
-  approxloc:{ja:'位置は概略', en:'Approx. location'}
+  approxloc:{ja:'位置は概略', en:'Approx. location'},
+  closed:{ja:'閉館・入浴不可', en:'Closed – no bathing'}
 };
 const FEATURE_FILTERS = ['ashimoto','konyoku','roten-river','roten-sea','wild','mud','sand','tank'];
 const SUPPLY = {
@@ -270,7 +273,8 @@ const COLOR_JA = {
   'clear (moor)':'無色〜淡褐色（モール）','clear (oil smell)':'無色（石油臭）','faint':'わずかに色づく','faint green':'わずかに緑','greenish':'緑がかる',
   'slight brown':'わずかに褐色','golden-brown':'黄金色','green → brown':'緑→茶に変化','green-brown':'緑褐色','grey (mud)':'灰色（泥）',
   'green':'緑','milky blue':'青白濁','milky blue-white':'青みがかった乳白色','oily, light brown':'油分を含む淡褐色','orange-brown':'橙褐色',
-  'rust-brown':'赤褐色','rust-brown (kinsen)':'赤褐色（金泉）','clear (ginsen)':'無色（銀泉）','sky blue':'空色'
+  'rust-brown':'赤褐色','oolong-tea brown (moor)':'烏龍茶色（モール泉）','coffee-black (moor)':'コーヒーのような黒（モール泉）',
+  'light brown (moor)':'淡褐色（モール泉）','clear / green':'無色〜緑','clear (sulfur smell)':'無色（硫黄臭）','clear / various':'無色・さまざま','rust-brown (kinsen)':'赤褐色（金泉）','clear (ginsen)':'無色（銀泉）','sky blue':'空色'
 };
 const NOTE_EN = {'湯シュラン三ツ星':'Yuchelin 3-star','重要文化財':'Important Cultural Property','足元湧出':'bottom-fed','ラジウム':'radium','乳白色の混浴露天':'milky mixed open-air','岩盤浴':'rock-bed bathing','金泉かけ流し':'free-flowing kinsen','鉱泥':'mineral mud','砂湯':'sand bath','5源泉・35浴槽':'5 sources, 35 baths'};
 const NOTE_JA = {'public bath':'共同浴場','free public bath':'無料共同浴場','river-side':'川沿い'};
@@ -309,6 +313,11 @@ const T = {
   jalan:{en:'Jalan 2026 ranking', ja:'じゃらん人気温泉地ランキング2026'},
   hoyou:{en:'National health spa 国民保養温泉地', ja:'国民保養温泉地'},
   sanmei:{en:"Japan's Three Famous Springs 日本三名泉", ja:'日本三名泉'},
+  hitou:{en:'Hidden gems 秘湯・野湯', ja:'秘湯・野湯（隠れた名湯）'},
+  recBy:{en:'Recommended by', ja:'紹介・推薦'},
+  access:{en:'Access & season', ja:'アクセス・時期'},
+  closedWarn:{en:'Closed. This bath is not open; the spring is unmanaged, so bathing is not recommended.', ja:'閉館しています。源泉は管理されていないため入浴は推奨されません。'},
+  hiddenNote:{en:'Wild baths (野湯) have no staff or facilities. Check access, weather, gas and bear warnings locally, and leave no trace.', ja:'野湯は無人で設備がありません。道路・天候・火山ガス・クマの情報を現地で確認し、ゴミは持ち帰りましょう。'},
   water:{en:'Water 泉質データ', ja:'泉質データ'},
   types:{en:'Spring types', ja:'泉質'},
   ph:{en:'pH', ja:'pH'},
@@ -337,7 +346,7 @@ const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':
 /* ---------- state ---------- */
 const S = Object.assign({q:'', region:'', pref:'', types:[], supply:'', feats:[], rec:[], min:3.0, cur:false, hideFac:false, sort:'score'}, store.get('filters', {}));
 S.q = ''; // never restore free text
-let DATA = [], PREFS = {}, sel = null, shown = 150;
+let DATA = [], PREFS = {}, SOURCES = {}, sel = null, shown = 150;
 
 /* ---------- helpers ---------- */
 function nameMain(o){ return LANG==='ja' ? o.ja : (o.en || o.ja); }
@@ -457,6 +466,8 @@ function zoomToRegion(r){
 function cardHTML(o){
   const tys = o.ty.filter(k=>TYPES[k]).slice(0,4).map(k => `<span class="tag t" style="background:${TYPES[k].c}">${esc(typeLabel(k,true))}</span>`).join('');
   const b = [];
+  if (o.closed) b.push(`<span class="badge x">${LANG==='ja'?'閉館':'Closed'}</span>`);
+  if (o.hitou) b.push(`<span class="badge h">${LANG==='ja'?'秘湯':'Hidden gem'}</span>`);
   if (o.yu3) b.push(`<span class="badge">${LANG==='ja'?'湯シュラン★★★':'Yuchelin ★★★'}</span>`);
   if (o.h100) b.push(`<span class="badge">${LANG==='ja'?`100選 ${o.h100}位`:`100 Onsen #${o.h100}`}</span>`);
   if (o.cur && o.cur.sup==='K') b.push(`<span class="badge k">${LANG==='ja'?'かけ流し':'Free-flowing'}</span>`);
@@ -506,16 +517,21 @@ function openDetail(o, fromMap){
   }
   if (o.sanmei) aw.push(LANG==='ja' ? '日本三名泉' : "One of Japan's Three Famous Springs (日本三名泉)");
   if (o.hoyou) aw.push(LANG==='ja' ? '国民保養温泉地（環境省指定）' : 'National health spa 国民保養温泉地 (Ministry of the Environment)');
+  if (o.closed) parts.push(`<div class="supply C">${t('closedWarn')}</div>`);
   if (aw.length) parts.push(`<div class="sec"><h4>${t('awards')}</h4><div class="tags">${aw.map(a=>`<span class="badge">${esc(a)}</span>`).join('')}</div></div>`);
   if (c){
-    parts.push(`<div class="sec"><p style="margin:0">${esc(LANG==='ja'?c.dja:c.den)}</p></div>`);
-    parts.push(`<div class="sec"><h4>${t('supply')}</h4><div class="supply ${c.sup}">${esc(LANG==='ja'?SUPPLY[c.sup].ja:SUPPLY[c.sup].en+' ('+SUPPLY[c.sup].j2+')')}</div></div>`);
+    parts.push(`<div class="sec"><p style="margin:0">${esc(LANG==='ja'?c.dja:c.den)}</p>${c.hja?`<p style="margin:.5em 0 0">${esc(LANG==='ja'?c.hja:c.hen)}</p>`:''}</div>`);
+    if (c.acc_en) parts.push(`<div class="sec"><h4>${t('access')}</h4><p style="margin:0">${esc(LANG==='ja'?c.acc_ja:c.acc_en)}</p></div>`);
+    if (c.sup && SUPPLY[c.sup]) parts.push(`<div class="sec"><h4>${t('supply')}</h4><div class="supply ${c.sup}">${esc(LANG==='ja'?SUPPLY[c.sup].ja:SUPPLY[c.sup].en+' ('+SUPPLY[c.sup].j2+')')}</div></div>`);
+  }
+  if (o.src && o.src.length){
+    parts.push(`<div class="sec"><h4>${t('recBy')}</h4><ul class="baths">${o.src.map(k => SOURCES[k] ? `<li><a href="${esc(SOURCES[k].url)}" target="_blank" rel="noopener">${esc(SOURCES[k].label)}</a></li>` : '').join('')}</ul>${o.fl.includes('wild')?`<p class="note">${t('hiddenNote')}</p>`:''}</div>`);
   }
   const rows = [];
   if (o.ty.length) rows.push([t('types'), o.ty.filter(k=>TYPES[k]).map(k=>`<span class="tag t" style="background:${TYPES[k].c}">${esc(typeLabel(k))}</span>`).join(' ')]);
   if (c){
     if (c.ph) rows.push([t('ph'), esc(c.ph)]);
-    if (c.t) rows.push([t('temp'), esc(c.t)+' °C']);
+    if (c.t) rows.push([t('temp'), esc(c.t)+' °C' + (o.fl.includes('kaon') ? (LANG==='ja'?'（加温あり）':' (heated for bathing)') : '')]);
     if (c.flow) rows.push([t('flow'), (LANG==='ja'?'毎分約':'~')+c.flow.toLocaleString()+(LANG==='ja'?'L':' L/min')]);
     if (c.color) rows.push([t('color'), esc(colorJa(c.color))]);
     if (c.self) rows.push([t('selfflow'), LANG==='ja'?'あり':'Yes']);
@@ -597,7 +613,7 @@ function buildFilters(){
   document.getElementById('fTitle').textContent = t('fTitle');
   document.getElementById('fClear').textContent = t('fClear');
   document.getElementById('fDone').textContent = t('fDone');
-  const recs = ['yu3','h100','jalan','sanmei','hoyou'];
+  const recs = ['hitou','yu3','h100','jalan','sanmei','hoyou'];
   document.getElementById('fBody').innerHTML = `
     <div class="fgroup"><h3>${t('gTypes')}</h3><div class="opts">${TYPE_ORDER.map(k=>chip('types',k,typeLabel(k),S.types.includes(k))).join('')}</div></div>
     <div class="fgroup"><h3>${t('gSupply')}</h3><div class="opts">${chip('supply','K',t('onlyK'),S.supply==='K')}${chip('supply','noC',t('hideC'),S.supply==='noC')}</div></div>
@@ -635,12 +651,14 @@ function aboutHTML(){
   <tr><td>${en?'Extreme pH, flow ≥ 5,000 L/min, bottom-fed bath, free-flowing declaration':'極端なpH・毎分5,000L以上・足元湧出・かけ流し宣言'}</td><td>≤ +0.16</td></tr>
   <tr><td>${en?'Water data from Wikipedia only: documented / extreme pH / flow ≥ 5,000 L/min':'ウィキペディアのみの泉質データ：記載あり／極端なpH／毎分5,000L以上'}</td><td>+0.03 / +0.05 / +0.05</td></tr>
   <tr><td>${en?'Yuchelin 湯シュラン 3-star (Oct 2026)':'湯シュラン三ツ星（2026年10月）'}</td><td>+0.35</td></tr>
+  <tr><td>${en?'Hidden-gem recommendations from onsen writers, blogs and socials (per source)':'温泉ライター・ブログ・SNSでの秘湯紹介（1件ごと）'}</td><td>+0.04 (≤ 0.12)</td></tr>
   <tr><td>${en?'Nippon no Onsen 100, 39th (top 20)':'第39回にっぽんの温泉100選（上位20）'}</td><td>+0.06–0.25</td></tr>
   <tr><td>${en?'Jalan 2026 rankings (satisfaction, hidden gems, revisit, dream)':'じゃらん人気温泉地ランキング2026'}</td><td>≤ +0.18</td></tr>
   <tr><td>${en?"Japan's Three Famous Springs / national health spa":'日本三名泉／国民保養温泉地'}</td><td>+0.05 each</td></tr>
   </tbody></table>
   <p>${en?'The score rewards water quality and freshness first. Places without detailed data stay near 3.00 until they are documented, which says nothing bad about them. Yuchelin awards 1–3 stars to individual facilities; only the 21 three-star baths have been announced so far.':'湯の質と鮮度を最重視しています。詳しいデータがない温泉は3.00付近になりますが、評価が低いという意味ではありません。湯シュランは施設ごとに1〜3つ星を認定する制度で、現時点で発表済みは三ツ星21施設のみです。'}</p>
   <p>${en?'Since 2005 every bath in Japan must post whether its water is diluted 加水, heated 加温, recirculated 循環 or treated with additives/chlorine 入浴剤・消毒. "Free-flowing" 源泉かけ流し has no legal definition, so check that notice (掲示) on site.':'2005年以降、加水・加温・循環・入浴剤/消毒の有無の掲示が義務化されています。「源泉かけ流し」には法的定義がないため、現地の掲示を確認してください。'}</p>
+  <p>${en?`<b>Hidden gems 秘湯・野湯</b>: ${DATA.filter(o=>o.hitou).length} deep, lesser-known onsen picked from Japanese, English and Chinese onsen writing (BE-PAL's 秘湯探検家 list, the ニフティ温泉 survey of 2,300 bathers, Tofugu, GOOD LUCK TRIP, Atlas Obscura, Japan Times, LINE TODAY Taiwan, local review sites and YouTube). Each one lists who recommends it.`:`<b>秘湯・野湯</b>：日本語・英語・中国語の温泉記事やブログ、SNS（BE-PAL 秘湯探検家、ニフティ温泉の2,300人アンケート、Tofugu、GOOD LUCK TRIP、Atlas Obscura、Japan Times、LINE TODAY台湾、口コミサイト、YouTube）から選んだ隠れた名湯${DATA.filter(o=>o.hitou).length}か所。それぞれの紹介元を表示しています。`}</p>
   <h3>${en?'Sources':'出典'}</h3>
   <ul>
     <li><a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a> — ${en?'onsen items in Japan, coordinates, spring-type classes (CC0)':'日本の温泉項目・座標・泉質分類（CC0）'}</li>
@@ -681,9 +699,10 @@ document.getElementById('lang-ja').onclick = () => { LANG='ja'; store.set('lang'
 
 /* ---------- boot ---------- */
 initZoom();
-Promise.all([fetch('onsen.json').then(r=>r.json()), fetch('prefs.json').then(r=>r.json()), fetch('japan.json').then(r=>r.json())])
-.then(([onsen, prefs, geo]) => {
-  DATA = onsen; prefs.forEach(p => PREFS[p.id] = p);
+Promise.all([fetch('onsen.json').then(r=>r.json()), fetch('prefs.json').then(r=>r.json()), fetch('japan.json').then(r=>r.json()),
+  fetch('sources.json').then(r=>r.ok?r.json():{}).catch(()=>({}))])
+.then(([onsen, prefs, geo, srcs]) => {
+  DATA = onsen; SOURCES = srcs || {}; prefs.forEach(p => PREFS[p.id] = p);
   sizeMap(); drawLand(geo); applyLang();
   if (S.pref) zoomTo(landFeatures.find(f => String(f.properties.id) === String(S.pref)));
   else if (S.region) zoomToRegion(S.region);

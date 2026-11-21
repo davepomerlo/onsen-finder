@@ -20,6 +20,7 @@ from common import DATA, DOCS, load_json, save_json_lines  # noqa: E402
 spec = importlib.util.spec_from_file_location('curated', os.path.join(DATA, 'curated.py'))
 cur_mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(cur_mod)
 C, YUCHELIN, HYAKUSEN, JALAN, SANMEISEN = cur_mod.C, cur_mod.YUCHELIN, cur_mod.HYAKUSEN, cur_mod.JALAN, cur_mod.SANMEISEN
+H = getattr(cur_mod, 'H', []); HIDDEN_TAGS = getattr(cur_mod, 'HIDDEN_TAGS', {}); SRC = getattr(cur_mod, 'SRC', {})
 
 CLASS_TYPE = {11408869: 's', 11428612: 'cl', 11587679: 's2', 11567142: 'hc', 11587674: 'so4', 11498934: 'rn',
               3046709: 'fe', 11371830: 'co2', 11644442: 'ac', 11416420: 'so4'}
@@ -207,6 +208,39 @@ def main():
         key = c['q'] if 'q' in c else c['new']['ja']
         if key in YUCHELIN: o['yu3'] = 1
         if key in SANMEISEN: o['sanmei'] = 1
+    geo = load_json('geocode.json', {}) or {}
+    for h in H:
+        if 'new' in h:
+            n = h['new']; g = geo.get(n.get('addr', ''))
+            lat, lon = (g[0], g[1]) if g else (n['lat'], n['lon'])
+            o = dict(q=None, ja=n['ja'], base=re.sub('温泉$', '', n['ja']), en=n['en'], lat=lat, lon=lon,
+                     pref=find_pref(lat, lon), types=set(), flags=set(), kind=n.get('kind', 'area'))
+            if not g:
+                o['flags'].add('approxloc')
+            elif 'approxloc' in h.get('flags', ''):
+                h = dict(h, flags=h['flags'].replace('approxloc', ''))
+            out.append(o)
+        else:
+            o = byq.get(h['q'])
+            if o is None:
+                print('warning: hidden-gem item not on Wikidata:', h['q'], h['ja'][:12]); continue
+        o['types'] |= set(h.get('types', '').split())
+        o['flags'] |= set(h.get('flags', '').split())
+        c = o.setdefault('cur', dict(ph=None, t=None, flow=None, sup=None, self=False, color=None, dja='', den='', baths=[]))
+        for k_src, k_dst in (('ph', 'ph'), ('temp', 't'), ('flow', 'flow'), ('supply', 'sup'), ('color', 'color')):
+            if h.get(k_src) and not c.get(k_dst): c[k_dst] = h[k_src]
+        if h.get('self'): c['self'] = True
+        if not c['dja']: c['dja'], c['den'] = h['ja'], h['en']
+        else: c['hja'], c['hen'] = h['ja'], h['en']
+        for k in ('acc_ja', 'acc_en'):
+            if h.get(k): c[k] = h[k]
+        o['hitou'] = 1
+        o['src'] = sorted(set(o.get('src', [])) | set(h.get('src', '').split()))
+        if h.get('closed'): o['closed'] = 1
+    for q, srcs in HIDDEN_TAGS.items():
+        if q in byq:
+            byq[q]['hitou'] = 1
+            byq[q]['src'] = sorted(set(byq[q].get('src', [])) | set(srcs.split()))
     for q, rk in HYAKUSEN.items():
         if q in byq: byq[q]['h100'] = rk
     for k, d in JALAN.items():
@@ -225,6 +259,8 @@ def main():
         json.dump([dict(id=i, ja=PNAME[i][0], en=PNAME[i][1], r=region(i)) for i in sorted(PNAME)], f, ensure_ascii=False)
     with open(os.path.join(DOCS, 'japan.json'), 'w', encoding='utf-8') as f:
         json.dump(simplified_map(), f, separators=(',', ':'))
+    with open(os.path.join(DOCS, 'sources.json'), 'w', encoding='utf-8') as f:
+        json.dump({k: {'label': v[0], 'url': v[1]} for k, v in SRC.items()}, f, ensure_ascii=False)
     with open(os.path.join(DOCS, 'meta.json'), 'w', encoding='utf-8') as f:
         json.dump({'count': len(data), 'curated': sum(1 for d in data if 'cur' in d),
                    'wikipedia': sum(1 for d in data if 'wk' in d)}, f)
@@ -272,15 +308,15 @@ def score(o):
     w = min(sum(RARE.get(t, 0) for t in o['types']) + (.02 if o['types'] else 0), .10)
     c = o.get('cur')
     if c:
-        w += {'K': .30, 'M': .12, 'C': 0}.get(c['sup'], 0)
+        w += {'K': .30, 'M': .12, 'C': 0}.get(c.get('sup'), 0)
         if c['self']: w += .08
         ch = 0
-        ph = [x for x in nums(c['ph']) if x <= 14]
+        ph = [x for x in nums(c.get('ph')) if x <= 14]
         if ph and (min(ph) < 3 or max(ph) >= 9.5): ch += .08
         if (c.get('flow') or 0) >= 5000: ch += .08
         if 'ashimoto' in o['flags']: ch += .06
         if 'tank' in o['flags']: ch += .06
-        w += min(ch, .16) + .04
+        w += min(ch, .16) + (.04 if c.get('sup') else .02)
     elif o.get('wk'):
         k = o['wk']; w += .03
         ph = [x for x in nums(k.get('ph')) if x <= 14]
@@ -294,13 +330,14 @@ def score(o):
     rcg += min(jb, .18)
     if o.get('sanmei'): rcg += .05
     if o.get('hoyou'): rcg += .05
+    if o.get('src') and not o.get('closed'): rcg += min(.04 * len(o['src']), .12)
     return round(min(3.0 + w + rcg, 4.8), 2), round(3.0 + w, 2), round(rcg, 2)
 
 
 def compact(o):
     d = dict(id=o['q'] or ('x' + o['base']), ja=o['ja'], en=o['en'] or '', la=round(o['lat'], 3), lo=round(o['lon'], 3),
              p=o['pref'], ty=sorted(o['types']), fl=sorted(o['flags']), k=o['kind'], sc=o['sc'], sw=o['scw'], sr=o['scr'])
-    for k in ('yu3', 'h100', 'jalan', 'sanmei', 'hoyou', 'cur', 'wk'):
+    for k in ('yu3', 'h100', 'jalan', 'sanmei', 'hoyou', 'cur', 'wk', 'hitou', 'src', 'closed'):
         if o.get(k): d[k] = o[k]
     return d
 
