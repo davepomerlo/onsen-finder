@@ -209,9 +209,14 @@ def main():
         if key in YUCHELIN: o['yu3'] = 1
         if key in SANMEISEN: o['sanmei'] = 1
     geo = load_json('geocode.json', {}) or {}
+    # trust a geocode only if it matched down to the lot number (番地) and no other address shares the point
+    seen_pts = {}
+    for k, v in geo.items():
+        seen_pts.setdefault((v[0], v[1]), []).append(k)
+    precise = {k: v for k, v in geo.items() if '番地' in (v[2] if len(v) > 2 else '') and len(seen_pts[(v[0], v[1])]) == 1}
     for h in H:
         if 'new' in h:
-            n = h['new']; g = geo.get(n.get('addr', ''))
+            n = h['new']; g = precise.get(n.get('addr', ''))
             lat, lon = (g[0], g[1]) if g else (n['lat'], n['lon'])
             o = dict(q=None, ja=n['ja'], base=re.sub('温泉$', '', n['ja']), en=n['en'], lat=lat, lon=lon,
                      pref=find_pref(lat, lon), types=set(), flags=set(), kind=n.get('kind', 'area'))
