@@ -1,0 +1,64 @@
+name: Weekly data update
+
+on:
+  schedule:
+    - cron: '17 18 * * 0'   # every Monday 03:17 JST
+  workflow_dispatch:         # run by hand from the Actions tab
+  push:
+    branches: [main]
+    paths:
+      - 'data/curated.py'
+      - 'data/romaji.txt'
+      - 'scripts/**'
+      - '.github/workflows/update.yml'
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test parsers
+        run: python tests/test_parsers.py
+
+      - name: Refresh onsen list from Wikidata
+        continue-on-error: true
+        run: python scripts/fetch_wikidata.py
+
+      - name: Read water data from Japanese Wikipedia
+        continue-on-error: true
+        run: python scripts/fetch_wikipedia.py
+
+      - name: Build site data
+        run: python scripts/build.py
+
+      - name: Check rating sources (湯シュラン, 100選, じゃらん)
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/watch_sources.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "onsen-finder-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data docs
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "Data update $(date -u +%Y-%m-%d)"
+            git push
+          fi
