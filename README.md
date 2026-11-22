@@ -21,8 +21,13 @@ open it and allow installing from your browser when Android asks. `.github/workf
 with [Capacitor](https://capacitorjs.com/) whenever the app (`docs/index.html`, `assets/`) changes. The app loads
 the latest data from the website on launch and falls back to the data bundled inside it when offline.
 
-**Home-screen app (PWA):** open the live site in Chrome, tap ⋮ → *Add to Home screen* / *Install app*.
-It opens full-screen and keeps working offline (`docs/sw.js`, `docs/manifest.webmanifest`).
+**Home-screen app (PWA), Android and iPhone:**
+- *iPhone / iPad:* open the live site in **Safari**, tap the Share button → **Add to Home Screen** → Add.
+  It gets its own icon, opens full-screen with a launch screen, respects the notch and home bar, and works offline.
+- *Android:* open the live site in Chrome, tap ⋮ → **Add to Home screen** / **Install app**.
+
+(`docs/sw.js`, `docs/manifest.webmanifest`, `docs/icons/`.) A native iPhone App Store build would need a paid
+Apple Developer account; the home-screen app gives the same experience without it.
 
 ## How the data updates
 

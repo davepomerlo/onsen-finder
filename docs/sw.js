@@ -1,5 +1,5 @@
 // Offline support for Onsen Finder: app shell cached first, data network-first (falls back to cache offline).
-const VERSION = 'onsen-v1';
+const VERSION = 'onsen-v2';
 const SHELL = ['./', 'index.html', 'd3.min.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 const DATA = ['onsen.json', 'prefs.json', 'japan.json', 'sources.json'];
 
