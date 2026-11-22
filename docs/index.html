@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Onsen Finder Japan</title>
+<meta name="theme-color" content="#c8442c">
+<meta name="description" content="Map of Japan's hot springs with water quality, hidden gems and ratings. English / 日本語.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Onsen Finder">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -214,7 +222,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.35fr) min
 
 <div id="about" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"><div class="box" id="aboutBox"></div></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="d3.min.js"></script>
 <script>
 (function(){
 "use strict";
@@ -699,8 +707,28 @@ document.getElementById('lang-ja').onclick = () => { LANG='ja'; store.set('lang'
 
 /* ---------- boot ---------- */
 initZoom();
-Promise.all([fetch('onsen.json').then(r=>r.json()), fetch('prefs.json').then(r=>r.json()), fetch('japan.json').then(r=>r.json()),
-  fetch('sources.json').then(r=>r.ok?r.json():{}).catch(()=>({}))])
+/* In the Android app the bundled data is a fallback: fetch this week's data from the live site first. */
+const IS_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const LIVE = 'https://davepomerlo.github.io/onsen-finder/';
+function loadJSON(name){
+  const local = () => fetch(name).then(r => { if (!r.ok) throw new Error(name + ' ' + r.status); return r.json(); });
+  if (!IS_APP || !navigator.onLine) return local();
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 5000);
+  return fetch(LIVE + name, {signal: ctl.signal, cache: 'no-store'}).then(r => { clearTimeout(tm); if (!r.ok) throw 0; return r.json(); }).catch(local);
+}
+if (IS_APP){
+  // open outside links (Google Maps, Wikipedia…) in the phone's browser or apps
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href^="http"]');
+    if (a && !a.href.startsWith(location.origin)){ e.preventDefault(); window.location.href = a.href; }
+  });
+}
+try {
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && !IS_APP && /github\.io$/.test(location.hostname)) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+} catch (e) {}
+Promise.all([loadJSON('onsen.json'), loadJSON('prefs.json'), loadJSON('japan.json'), loadJSON('sources.json').catch(()=>({}))])
 .then(([onsen, prefs, geo, srcs]) => {
   DATA = onsen; SOURCES = srcs || {}; prefs.forEach(p => PREFS[p.id] = p);
   sizeMap(); drawLand(geo); applyLang();

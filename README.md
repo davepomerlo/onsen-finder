@@ -13,6 +13,17 @@ A bilingual (English / 日本語) map of Japan's hot springs with water-quality 
   then awards (湯シュラン stars, にっぽんの温泉100選, じゃらん rankings, 日本三名泉, 国民保養温泉地).
   The formula is in `scripts/build.py` (`score()`) and explained in the app's **?** panel.
 
+## Install it as an app
+
+**Android app (APK):** download **OnsenFinder.apk** from the
+[android-latest release](https://github.com/davepomerlo/onsen-finder/releases/tag/android-latest) on your phone,
+open it and allow installing from your browser when Android asks. `.github/workflows/android.yml` rebuilds it
+with [Capacitor](https://capacitorjs.com/) whenever the app (`docs/index.html`, `assets/`) changes. The app loads
+the latest data from the website on launch and falls back to the data bundled inside it when offline.
+
+**Home-screen app (PWA):** open the live site in Chrome, tap ⋮ → *Add to Home screen* / *Install app*.
+It opens full-screen and keeps working offline (`docs/sw.js`, `docs/manifest.webmanifest`).
+
 ## How the data updates
 
 `.github/workflows/update.yml` runs every Monday at 03:17 JST, on demand (Actions → *Weekly data update* →

@@ -1,0 +1,99 @@
+name: Build Android app
+
+# Wraps docs/ (the web app) in a Capacitor Android shell and publishes the APK to the
+# "android-latest" release: https://github.com/davepomerlo/onsen-finder/releases/tag/android-latest
+# The app fetches this week's data from GitHub Pages on launch, so it only needs rebuilding when the app itself changes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/index.html'
+      - 'docs/d3.min.js'
+      - 'assets/**'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Create Capacitor project
+        run: |
+          mkdir -p app && cd app
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          mkdir -p www && cp -r ../docs/. www/
+          rm -f www/sw.js
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "io.github.davepomerlo.onsenfinder",
+            "appName": "Onsen Finder",
+            "webDir": "www",
+            "android": { "backgroundColor": "#f3f5f2" }
+          }
+          JSON
+          npx cap add android
+
+      - name: App icon and splash screen
+        continue-on-error: true
+        run: |
+          cd app && cp -r ../assets ./assets
+          npx --yes @capacitor/assets@3 generate --android \
+            --iconBackgroundColor '#c8442c' --splashBackgroundColor '#f3f5f2'
+
+      - name: Version
+        run: |
+          cd app/android/app
+          sed -i "s/versionCode [0-9]\+/versionCode ${{ github.run_number }}/" build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" build.gradle
+          grep -E "versionCode|versionName" build.gradle
+
+      - name: Build APK
+        run: |
+          cd app
+          npx cap sync android
+          cd android && chmod +x gradlew && ./gradlew --no-daemon assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/OnsenFinder.apk"
+          ls -la "$GITHUB_WORKSPACE/OnsenFinder.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OnsenFinder-apk
+          path: OnsenFinder.apk
+
+      - name: Publish to the android-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Onsen Finder for Android — build ${{ github.run_number }} ($(date -u +%Y-%m-%d)).
+
+          Install: open this page on your Android phone, tap **OnsenFinder.apk**, then allow installing apps from your browser when asked.
+          The app loads the latest onsen data from the website each time it opens, and works offline with the data bundled at build time.
+
+          If an update refuses to install over the old version, uninstall Onsen Finder first, then install this one."
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release edit android-latest --notes "$NOTES"
+          else
+            gh release create android-latest --title "Onsen Finder for Android" --notes "$NOTES" --latest
+          fi
+          gh release upload android-latest OnsenFinder.apk --clobber
