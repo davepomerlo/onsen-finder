@@ -22,6 +22,7 @@ SOURCES = [
     ('jalan_2027', 'じゃらん人気温泉地ランキング2027', 'https://jrc.jalan.net/', 'keyword:温泉地ランキング2027'),
 ]
 KEYWORDS = re.compile(r'湯シュラン|星|認定|温泉|ランキング|Yuchelin')
+SIGNAL = re.compile(r'[一二三]ツ星|つ星|認定|アワード|Award|ランキング|100選|発表')
 
 
 def page_text(raw):
@@ -53,6 +54,15 @@ def open_issue(title, body):
     if not token or not repo:
         print('No GITHUB_TOKEN; issue not opened.\n' + title + '\n' + body)
         return
+    try:  # don't pile up duplicates: skip if an open data-update issue already has this title
+        q = urllib.request.Request(f'https://api.github.com/repos/{repo}/issues?state=open&labels=data-update&per_page=50',
+                                   headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json',
+                                            'User-Agent': 'onsen-finder-bot'})
+        with urllib.request.urlopen(q, timeout=30) as r:
+            if any(i.get('title') == title for i in json.loads(r.read())):
+                print('An open issue already covers this; not opening another.'); return
+    except Exception as e:
+        print('Could not list issues:', e)
     req = urllib.request.Request(f'https://api.github.com/repos/{repo}/issues', method='POST',
                                  data=json.dumps({'title': title, 'body': body, 'labels': ['data-update']}).encode(),
                                  headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json',
@@ -78,16 +88,24 @@ def main():
             print(f'{label}: could not check ({e})')
             continue
         prev = state.get(key)
-        state[key] = {'fp': res['fp'], 'items': res['items'][:200]}
+        seen = list(dict.fromkeys((prev or {}).get('items', []) + res['items']))[-1000:]
+        state[key] = {'fp': res['fp'], 'items': seen}
         if prev is None:
             print(f'{label}: first check recorded')
             continue
-        if prev['fp'] != res['fp'] and (mode != 'exists' or res['items']):
-            new_items = [x for x in res['items'] if x not in set(prev.get('items', []))]
-            changes.append((label, url, new_items or res['items'][:10]))
-            print(f'{label}: CHANGED')
+        if mode == 'exists':
+            if res['items'] and prev['fp'] != res['fp']:
+                changes.append((label, url, res['items'])); print(f'{label}: NOW PUBLISHED')
+            else:
+                print(f'{label}: not yet')
+            continue
+        # report only lines never seen before that look like results (stars, certification, awards, rankings)
+        old = set(prev.get('items', []))
+        new_items = [x for x in res['items'] if x not in old and SIGNAL.search(x)]
+        if new_items:
+            changes.append((label, url, new_items)); print(f'{label}: {len(new_items)} new line(s)')
         else:
-            print(f'{label}: no change')
+            print(f'{label}: no relevant change')
     save_json(os.path.join(DATA, 'watch_state.json'), state)
     if changes:
         body = ['The weekly check found updates on these rating sources. Review them and update `data/curated.py` '
